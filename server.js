@@ -60,7 +60,7 @@ async function initializeDatabase() {
         `);
         console.log('Database initialized successfully');
     } catch (error) {
-        console.error('Error initializing database:', error);
+        console.error('Error initializing database:', error.stack);
         process.exit(1);
     }
 }
@@ -79,7 +79,7 @@ const authenticateToken = (req, res, next) => {
 
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) {
-            console.error('Invalid or expired token:', err);
+            console.error('Invalid or expired token:', err.message);
             return res.status(403).json({ error: 'التوكن غير صالح أو منتهي الصلاحية' });
         }
         req.user = user;
@@ -90,32 +90,33 @@ const authenticateToken = (req, res, next) => {
 // نقطة نهاية لإنشاء حساب
 app.post('/api/auth/signup', async (req, res) => {
     const { email, password } = req.body;
+    console.log('Signup attempt for:', email);
     if (!email || !password) {
         console.error('Missing email or password');
         return res.status(400).json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' });
     }
 
     if (password.length < 6) {
-        console.error('Password too short:', email);
+        console.error('Password too short for:', email);
         return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
     }
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
+        console.log('Password hashed successfully for:', email);
         const result = await pool.query(
             'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id',
             [email, hashedPassword]
         );
         const userId = result.rows[0].id;
         const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1d' });
-        console.log('User signed up successfully:', email);
+        console.log('User created successfully:', { userId, email });
         res.status(201).json({ token, userId });
     } catch (error) {
+        console.error('Signup error:', error.message, error.stack);
         if (error.code === '23505') { // Unique violation (email already exists)
-            console.error('Email already exists:', email);
             return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
         }
-        console.error('Error signing up:', error);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
@@ -123,6 +124,7 @@ app.post('/api/auth/signup', async (req, res) => {
 // نقطة نهاية لتسجيل الدخول
 app.post('/api/auth/signin', async (req, res) => {
     const { email, password } = req.body;
+    console.log('Signin attempt for:', email);
     if (!email || !password) {
         console.error('Missing email or password');
         return res.status(400).json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' });
@@ -146,7 +148,7 @@ app.post('/api/auth/signin', async (req, res) => {
         console.log('User signed in successfully:', email);
         res.json({ token, userId: user.id });
     } catch (error) {
-        console.error('Error signing in:', error);
+        console.error('Signin error:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
@@ -159,9 +161,10 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
             console.error('User not found:', req.user.id);
             return res.status(404).json({ error: 'المستخدم غير موجود' });
         }
+        console.log('User verified:', req.user.id);
         res.json({ userId: result.rows[0].id });
     } catch (error) {
-        console.error('Error fetching user:', error);
+        console.error('Error fetching user:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
@@ -169,6 +172,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // نقطة نهاية لإضافة مهمة
 app.post('/api/tasks', authenticateToken, async (req, res) => {
     const { id, title, description, difficulty, difficulty_text, category, category_text, category_icon_class, points, completed } = req.body;
+    console.log('Adding task for user:', req.user.id);
     if (!id || !title || !difficulty || !difficulty_text || !category || !category_text || !category_icon_class || !points) {
         console.error('Missing required task fields');
         return res.status(400).json({ error: 'جميع الحقول المطلوبة يجب أن تكون موجودة' });
@@ -179,10 +183,10 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
             'INSERT INTO tasks (id, user_id, title, description, difficulty, difficulty_text, category, category_text, category_icon_class, points, completed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
             [id, req.user.id, title, description, difficulty, difficulty_text, category, category_text, category_icon_class, points, completed]
         );
-        console.log('Task added for user:', req.user.id);
+        console.log('Task added successfully for user:', req.user.id);
         res.status(201).json({ message: 'تم إضافة المهمة بنجاح' });
     } catch (error) {
-        console.error('Error adding task:', error);
+        console.error('Error adding task:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
@@ -191,9 +195,10 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
 app.get('/api/tasks', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM tasks WHERE user_id = $1', [req.user.id]);
+        console.log('Tasks fetched for user:', req.user.id);
         res.json(result.rows);
     } catch (error) {
-        console.error('Error fetching tasks:', error);
+        console.error('Error fetching tasks:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
@@ -201,6 +206,7 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
 // نقطة نهاية لإتمام مهمة
 app.patch('/api/tasks/:id/complete', authenticateToken, async (req, res) => {
     const taskId = req.params.id;
+    console.log('Completing task:', taskId, 'for user:', req.user.id);
     try {
         const taskResult = await pool.query('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [taskId, req.user.id]);
         if (taskResult.rows.length === 0) {
@@ -236,10 +242,10 @@ app.patch('/api/tasks/:id/complete', authenticateToken, async (req, res) => {
             'UPDATE users SET total_points = $1, current_level = $2, stats = $3 WHERE id = $4',
             [newTotalPoints, newLevel, newStats, req.user.id]
         );
-        console.log('Task completed:', taskId);
+        console.log('Task completed successfully:', taskId);
         res.json({ message: 'تم إتمام المهمة بنجاح' });
     } catch (error) {
-        console.error('Error completing task:', error);
+        console.error('Error completing task:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
@@ -247,16 +253,17 @@ app.patch('/api/tasks/:id/complete', authenticateToken, async (req, res) => {
 // نقطة نهاية لحذف مهمة
 app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
     const taskId = req.params.id;
+    console.log('Deleting task:', taskId, 'for user:', req.user.id);
     try {
         const result = await pool.query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [taskId, req.user.id]);
         if (result.rowCount === 0) {
             console.error('Task not found or unauthorized:', taskId);
             return res.status(404).json({ error: 'المهمة غير موجودة أو لا تملك الصلاحية' });
         }
-        console.log('Task deleted:', taskId);
+        console.log('Task deleted successfully:', taskId);
         res.json({ message: 'تم حذف المهمة بنجاح' });
     } catch (error) {
-        console.error('Error deleting task:', error);
+        console.error('Error deleting task:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
@@ -270,9 +277,10 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'المستخدم غير موجود' });
         }
         const { total_points, current_level, stats } = result.rows[0];
+        console.log('Stats fetched for user:', req.user.id);
         res.json({ totalPoints: total_points, currentLevel: current_level, stats });
     } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error('Error fetching stats:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
 });
