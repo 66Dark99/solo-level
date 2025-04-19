@@ -59,9 +59,8 @@
 
         select {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2300e5ff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: left 0.5rem center; background-repeat: no-repeat; background-size: 1.5em; padding-left: 2.5rem; appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer;
+            background-position: left 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-left: 2.5rem; appearance: none; -webkit-appearance: none; -moz-appearance: none;
         }
-        select::-ms-expand { display: none; }
 
         #stats-area { border: 1px solid var(--border-color); background-color: rgba(15, 15, 46, 0.5); }
         .progress-bar-container { background-color: var(--background-light); border: 1px solid var(--border-color); height: 1.5rem; }
@@ -96,9 +95,6 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
-    <div id="loading-spinner" class="fixed inset-0 flex items-center justify-center bg-[var(--background-dark)]/50 hidden z-50">
-        <i class="fas fa-spinner fa-spin text-4xl text-[var(--primary-color)]"></i>
-    </div>
     <header class="p-4 border-b border-[var(--border-color)] text-center glow mb-6 sticky top-0 bg-[var(--background-medium)]/80 backdrop-blur-sm z-10">
         <h1 class="text-2xl md:text-3xl font-bold">[ سجل المهام ]</h1>
         <button id="logout-button" class="absolute top-3 right-3 btn btn-danger text-sm">تسجيل الخروج</button>
@@ -226,7 +222,6 @@
         const modalSubmitButton = document.getElementById('modal-submit-button');
         const noTasksMessage = document.getElementById('no-tasks-message');
         const logoutButton = document.getElementById('logout-button');
-        const loadingSpinner = document.getElementById('loading-spinner');
 
         const currentLevelElement = document.getElementById('current-level');
         const totalPointsElement = document.getElementById('total-points');
@@ -249,49 +244,18 @@
         let stats = { strength: 0, stamina: 0, intelligence: 0, agility: 0, general: 0 };
         let isStatsExpanded = JSON.parse(localStorage.getItem(STATS_EXPANDED_KEY)) || false;
 
-        // تحقق من صلاحية التوكن عند تحميل الصفحة
-        async function checkTokenValidity() {
-            showLoading();
-            try {
-                const response = await fetch('/api/stats', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/sign-in.html';
-                }
-            } catch (error) {
-                console.error('Token check failed:', error);
-                localStorage.removeItem('token');
-                window.location.href = '/sign-in.html';
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // إدارة التحميل
-        function showLoading() {
-            loadingSpinner.classList.remove('hidden');
-        }
-
-        function hideLoading() {
-            loadingSpinner.classList.add('hidden');
-        }
-
-        // التحقق من المصادقة
+        // Check authentication
         if (!localStorage.getItem('token')) {
             window.location.href = '/sign-in.html';
-        } else {
-            checkTokenValidity();
         }
 
-        // تسجيل الخروج
+        // Logout
         logoutButton.addEventListener('click', () => {
             localStorage.removeItem('token');
             window.location.href = '/sign-in.html';
         });
 
-        // تهيئة الواجهة
+        // Initialize
         applyInitialStatsVisibility();
         fetchTasks();
         fetchStats();
@@ -365,37 +329,28 @@
                 completed: false
             };
 
-            showLoading();
             try {
                 const response = await fetch('/api/tasks', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        '():
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify(taskData)
                 });
                 if (response.ok) {
-                    await fetchTasks();
+                    fetchTasks();
                     hideModal();
-                } else if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/sign-in.html';
                 } else {
-                    const errorData = await response.json();
-                    alert(errorData.error || 'خطأ أثناء إضافة المهمة');
+                    alert('خطأ أثناء إضافة المهمة');
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('حدث خطأ. حاول مرة أخرى.');
-            } finally {
-                hideLoading();
             }
         }
 
         async function fetchTasks() {
-            showLoading();
             try {
                 const response = await fetch('/api/tasks', {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -403,23 +358,16 @@
                 if (response.ok) {
                     tasks = await response.json();
                     renderAllTasks();
-                } else if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/sign-in.html';
                 } else {
-                    const errorData = await response.json();
-                    alert(errorData.error || 'خطأ أثناء جلب المهام');
+                    alert('خطأ أثناء جلب المهام');
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('حدث خطأ. حاول مرة أخرى.');
-            } finally {
-                hideLoading();
             }
         }
 
         async function fetchStats() {
-            showLoading();
             try {
                 const response = await fetch('/api/stats', {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -430,18 +378,12 @@
                     currentLevel = data.currentLevel;
                     stats = data.stats;
                     updateStatsDisplay();
-                } else if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/sign-in.html';
                 } else {
-                    const errorData = await response.json();
-                    alert(errorData.error || 'خطأ أثناء جلب الإحصائيات');
+                    alert('خطأ أثناء جلب الإحصائيات');
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('حدث خطأ. حاول مرة أخرى.');
-            } finally {
-                hideLoading();
             }
         }
 
@@ -531,51 +473,37 @@
         }
 
         async function completeTask(taskId) {
-            showLoading();
             try {
                 const response = await fetch(`/api/tasks/${taskId}/complete`, {
                     method: 'PATCH',
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (response.ok) {
-                    await fetchTasks();
-                    await fetchStats();
-                } else if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/sign-in.html';
+                    fetchTasks();
+                    fetchStats();
                 } else {
-                    const errorData = await response.json();
-                    alert(errorData.error || 'خطأ أثناء إتمام المهمة');
+                    alert('خطأ أثناء إتمام المهمة');
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('حدث خطأ. حاول مرة أخرى.');
-            } finally {
-                hideLoading();
             }
         }
 
         async function deleteTask(taskId) {
-            showLoading();
             try {
                 const response = await fetch(`/api/tasks/${taskId}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (response.ok) {
-                    await fetchTasks();
-                } else if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/sign-in.html';
+                    fetchTasks();
                 } else {
-                    const errorData = await response.json();
-                    alert(errorData.error || 'خطأ أثناء حذف المهمة');
+                    alert('خطأ أثناء حذف المهمة');
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('حدث خطأ. حاول مرة أخرى.');
-            } finally {
-                hideLoading();
             }
         }
 
