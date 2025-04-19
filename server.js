@@ -1,93 +1,72 @@
-require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
+const { neon } = require('@neondatabase/serverless');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
 const app = express();
+
+// إعدادات Middleware
 app.use(cors());
 app.use(express.json());
 
-// التحقق من متغيرات البيئة
-if (!process.env.DATABASE_URL) {
-    console.error('Missing required environment variable: DATABASE_URL');
-    process.exit(1);
-}
+// الاتصال بقاعدة بيانات Neon
+const sql = neon(process.env.DATABASE_URL);
 
-// Neon database connection
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
+// مفتاح سري لـ JWT (يجب تخزينه في متغيرات البيئة في Vercel)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// اختبار الاتصال بقاعدة البيانات
-pool.connect((err, client, release) => {
-    if (err) {
-        console.error('Error connecting to Neon database:', err.message, err.stack);
-        process.exit(1);
-    }
-    console.log('Connected to Neon database successfully');
-    release();
-});
-
-// تهيئة قاعدة البيانات
+// إنشاء جدول المستخدمين إذا لم يكن موجودًا
 async function initializeDatabase() {
-    try {
-        console.log('Initializing database...');
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password VARCHAR(255) NOT NULL
-            );
-        `);
-        console.log('Database initialized successfully');
-    } catch (error) {
-        console.error('Error initializing database:', error.message, error.stack);
-        process.exit(1);
-    }
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    console.log('Database initialized');
+  } catch (error) {
+    console.error('Error initializing database:', error);
+  }
 }
 
-// استدعاء التهيئة عند بدء التطبيق
 initializeDatabase();
 
-// نقطة نهاية لإنشاء حساب
+// مسار إنشاء حساب
 app.post('/api/auth/signup', async (req, res) => {
-    const { email, password } = req.body;
-    console.log('Signup attempt for:', email);
+  const { email, password } = req.body;
 
-    if (!email || !password) {
-        console.error('Missing email or password');
-        return res.status(400).json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' });
+  try {
+    // التحقق من وجود المستخدم
+    const existingUser = await sql`SELECT * FROM users WHERE email = ${email}`;
+    if (existingUser.length > 0) {
+      return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
     }
 
-    try {
-        console.log('Inserting user into database:', email);
-        const result = await pool.query(
-            'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id',
-            [email, password]
-        );
-        const userId = result.rows[0].id;
-        console.log('User inserted successfully, ID:', userId);
+    // تشفير كلمة المرور
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-        res.status(201).json({ message: 'تم إنشاء الحساب بنجاح', userId });
-    } catch (error) {
-        console.error('Signup error:', error.message, error.stack);
-        if (error.code === '23505') {
-            console.error('Email already exists:', email);
-            return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
-        }
-        res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
-    }
+    // إضافة المستخدم إلى قاعدة البيانات
+    const [newUser] = await sql`
+      INSERT INTO users (email, password)
+      VALUES (${email}, ${hashedPassword})
+      RETURNING id, email
+    `;
+
+    // إنشاء توكن JWT
+    const token = jwt.sign({ userId: newUser.id, email: newUser.email }, JWT_SECRET, {
+      expiresIn: '1h',
+    });
+
+    res.status(201).json({ token, userId: newUser.id });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'خطأ أثناء إنشاء الحساب' });
+  }
 });
 
-// نقطة نهاية للتحقق من صحة التطبيق
-app.get('/api/health', (req, res) => {
-    console.log('Health check requested');
-    res.status(200).json({ status: 'OK', message: 'Server is running' });
-});
-
-// تشغيل الخادم
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// تصدير التطبيق ليعمل كـ serverless function على Vercel
+module.exports = app;
