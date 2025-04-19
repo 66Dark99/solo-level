@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول - Solo Leveling</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        :root {
+            --primary-color: #00e5ff;
+            --secondary-color: #00a2ff;
+            --background-dark: #05051a;
+            --background-medium: #0f0f2e;
+            --background-light: #1a1a3e;
+            --text-color: var(--primary-color);
+            --text-muted-color: #a0a0ff;
+            --border-color: rgba(0, 229, 255, 0.5);
+            --glow-color: rgba(0, 229, 255, 0.6);
+            --danger-color: #ff4d4d;
+            --success-color: #4dff88;
+        }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: linear-gradient(to bottom, var(--background-medium), var(--background-dark));
+            color: var(--text-color);
+            text-shadow: 0 0 5px var(--glow-color);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .glow { box-shadow: 0 0 15px var(--glow-color); }
+        .input-glow:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--glow-color);
+            border-color: var(--primary-color) !important;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: bold;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            border: none;
+        }
+        .btn-primary {
+            background-color: var(--secondary-color);
+            color: var(--background-dark);
+            text-shadow: none;
+        }
+        .btn-primary:hover {
+            background-color: var(--primary-color);
+            box-shadow: 0 0 10px var(--glow-color);
+        }
+        .error-message {
+            color: var(--danger-color);
+            text-shadow: 0 0 3px rgba(255, 77, 77, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-spinner" class="fixed inset-0 flex items-center justify-center bg-[var(--background-dark)]/50 hidden z-50">
+        <i class="fas fa-spinner fa-spin text-4xl text-[var(--primary-color)]"></i>
+    </div>
+    <div class="bg-[var(--background-light)]/95 border border-[var(--border-color)] rounded-lg p-8 shadow-xl glow max-w-md w-full mx-4">
+        <h1 class="text-2xl font-bold text-center mb-6 border-b border-[var(--border-color)]/50 pb-2">تسجيل الدخول</h1>
+        <form id="signin-form" class="space-y-4">
+            <div>
+                <label for="email" class="block text-sm font-medium mb-1 text-[var(--text-muted-color)]">البريد الإلكتروني:</label>
+                <input type="email" id="email" required class="w-full bg-gray-800/70 border border-[var(--border-color)]/80 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none input-glow transition duration-300" placeholder="أدخل بريدك الإلكتروني" />
+            </div>
+            <div>
+                <label for="password" class="block text-sm font-medium mb-1 text-[var(--text-muted-color)]">كلمة المرور:</label>
+                <input type="password" id="password" required class="w-full bg-gray-800/70 border border-[var(--border-color)]/80 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none input-glow transition duration-300" placeholder="أدخل كلمة المرور" />
+            </div>
+            <p id="error-message" class="text-sm error-message hidden"></p>
+            <button type="submit" class="w-full btn btn-primary glow">تسجيل الدخول</button>
+        </form>
+        <p class="text-center text-sm text-[var(--text-muted-color)] mt-4">
+            ليس لديك حساب؟ <a href="sign-up.html" class="text-[var(--primary-color)] hover:underline">إنشاء حساب</a>
+        </p>
+    </div>
+
+    <script>
+        const signinForm = document.getElementById('signin-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const errorMessage = document.getElementById('error-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        function showLoading() {
+            loadingSpinner.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingSpinner.classList.add('hidden');
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+        signinForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!email || !password) {
+                showError('البريد الإلكتروني وكلمة المرور مطلوبان');
+                return;
+            }
+
+            showLoading();
+            hideError();
+
+            try {
+                const response = await fetch('/api/auth/signin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    localStorage.setItem('token', data.token);
+                    window.location.href = '/index.html';
+                } else {
+                    showError(data.error || 'خطأ أثناء تسجيل الدخول');
+                }
+            } catch (error) {
+                console.error('Signin error:', error);
+                showError('حدث خطأ. حاول مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        });
+    </script>
+</body>
+</html>
