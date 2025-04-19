@@ -1,7 +1,6 @@
 {
   "name": "solo-leveling-backend", 
   "version": "1.0.0",
-  "description": "الخادم الخلفي لتطبيق مهام Solo Leveling", 
   "main": "server.js", 
   "scripts": {
     "start": "node server.js",
