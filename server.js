@@ -10,7 +10,7 @@ app.use(express.json());
 
 // التحقق من متغيرات البيئة
 if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) {
-    console.error('Missing required environment variables: DATABASE_URL and JWT_SECRET');
+    console.error('Missing required environment variables: DATABASE_URL or JWT_SECRET');
     process.exit(1);
 }
 
@@ -23,16 +23,17 @@ const pool = new Pool({
 // اختبار الاتصال بقاعدة البيانات
 pool.connect((err, client, release) => {
     if (err) {
-        console.error('Error connecting to Neon database:', err.stack);
+        console.error('Error connecting to Neon database:', err.message, err.stack);
         process.exit(1);
     }
-    console.log('Connected to Neon database');
+    console.log('Connected to Neon database successfully');
     release();
 });
 
 // تهيئة قاعدة البيانات
 async function initializeDatabase() {
     try {
+        console.log('Initializing database...');
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -60,7 +61,7 @@ async function initializeDatabase() {
         `);
         console.log('Database initialized successfully');
     } catch (error) {
-        console.error('Error initializing database:', error.stack);
+        console.error('Error initializing database:', error.message, error.stack);
         process.exit(1);
     }
 }
@@ -91,6 +92,7 @@ const authenticateToken = (req, res, next) => {
 app.post('/api/auth/signup', async (req, res) => {
     const { email, password } = req.body;
     console.log('Signup attempt for:', email);
+
     if (!email || !password) {
         console.error('Missing email or password');
         return res.status(400).json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' });
@@ -102,19 +104,27 @@ app.post('/api/auth/signup', async (req, res) => {
     }
 
     try {
+        console.log('Hashing password for:', email);
         const hashedPassword = await bcrypt.hash(password, 10);
         console.log('Password hashed successfully for:', email);
+
+        console.log('Inserting user into database:', email);
         const result = await pool.query(
             'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id',
             [email, hashedPassword]
         );
         const userId = result.rows[0].id;
+        console.log('User inserted successfully, ID:', userId);
+
+        console.log('Generating JWT for user:', userId);
         const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1d' });
-        console.log('User created successfully:', { userId, email });
+        console.log('JWT generated successfully for:', email);
+
         res.status(201).json({ token, userId });
     } catch (error) {
         console.error('Signup error:', error.message, error.stack);
-        if (error.code === '23505') { // Unique violation (email already exists)
+        if (error.code === '23505') {
+            console.error('Email already exists:', email);
             return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
         }
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
@@ -125,6 +135,7 @@ app.post('/api/auth/signup', async (req, res) => {
 app.post('/api/auth/signin', async (req, res) => {
     const { email, password } = req.body;
     console.log('Signin attempt for:', email);
+
     if (!email || !password) {
         console.error('Missing email or password');
         return res.status(400).json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' });
@@ -173,6 +184,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 app.post('/api/tasks', authenticateToken, async (req, res) => {
     const { id, title, description, difficulty, difficulty_text, category, category_text, category_icon_class, points, completed } = req.body;
     console.log('Adding task for user:', req.user.id);
+
     if (!id || !title || !difficulty || !difficulty_text || !category || !category_text || !category_icon_class || !points) {
         console.error('Missing required task fields');
         return res.status(400).json({ error: 'جميع الحقول المطلوبة يجب أن تكون موجودة' });
@@ -207,6 +219,7 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
 app.patch('/api/tasks/:id/complete', authenticateToken, async (req, res) => {
     const taskId = req.params.id;
     console.log('Completing task:', taskId, 'for user:', req.user.id);
+
     try {
         const taskResult = await pool.query('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [taskId, req.user.id]);
         if (taskResult.rows.length === 0) {
@@ -254,6 +267,7 @@ app.patch('/api/tasks/:id/complete', authenticateToken, async (req, res) => {
 app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
     const taskId = req.params.id;
     console.log('Deleting task:', taskId, 'for user:', req.user.id);
+
     try {
         const result = await pool.query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [taskId, req.user.id]);
         if (result.rowCount === 0) {
@@ -283,6 +297,12 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
         console.error('Error fetching stats:', error.message, error.stack);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
     }
+});
+
+// نقطة نهاية للتحقق من صحة التطبيق
+app.get('/api/health', (req, res) => {
+    console.log('Health check requested');
+    res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
 // تشغيل الخادم
