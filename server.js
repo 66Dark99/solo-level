@@ -75,6 +75,20 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
+// نقطة نهاية للتحقق من المستخدم
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, email FROM users WHERE id = $1', [req.user.id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'المستخدم غير موجود' });
+        }
+        res.json({ userId: result.rows[0].id });
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
+    }
+});
+
 // مسارات المصادقة
 app.post('/api/auth/signin', async (req, res) => {
     const { email, password } = req.body;
@@ -95,7 +109,7 @@ app.post('/api/auth/signin', async (req, res) => {
         }
 
         const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        res.json({ token });
+        res.json({ token, userId: user.id });
     } catch (error) {
         console.error('Signin error:', error);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
@@ -121,7 +135,7 @@ app.post('/api/auth/signup', async (req, res) => {
         );
 
         const token = jwt.sign({ id: newUser.rows[0].id, email: newUser.rows[0].email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        res.status(201).json({ token });
+        res.status(201).json({ token, userId: newUser.rows[0].id });
     } catch (error) {
         console.error('Signup error:', error);
         res.status(500).json({ error: 'خطأ في الخادم، حاول لاحقًا' });
