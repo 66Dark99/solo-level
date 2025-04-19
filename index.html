@@ -31,8 +31,7 @@
             text-shadow: 0 0 5px var(--glow-color);
             min-height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            flex-direction: column;
         }
         .glow { box-shadow: 0 0 15px var(--glow-color); }
         .input-glow:focus {
@@ -64,27 +63,38 @@
     </style>
 </head>
 <body>
+    <header class="p-4 border-b border-[var(--border-color)] text-center glow sticky top-0 bg-[var(--background-medium)]/80 backdrop-blur-sm z-10">
+        <div class="flex justify-between items-center">
+            <h1 class="text-xl md:text-2xl font-bold">[ Solo Leveling ]</h1>
+            <div id="auth-area">
+                <button id="signin-button" class="btn btn-primary glow text-sm hidden">تسجيل الدخول</button>
+                <span id="user-id" class="text-sm font-semibold text-[var(--text-muted-color)] hidden">ID: <span id="user-id-value"></span></span>
+            </div>
+        </div>
+    </header>
     <div id="loading-spinner" class="fixed inset-0 flex items-center justify-center bg-[var(--background-dark)]/50 hidden z-50">
         <i class="fas fa-spinner fa-spin text-4xl text-[var(--primary-color)]"></i>
     </div>
-    <div class="bg-[var(--background-light)]/95 border border-[var(--border-color)] rounded-lg p-8 shadow-xl glow max-w-md w-full mx-4">
-        <h1 class="text-2xl font-bold text-center mb-6 border-b border-[var(--border-color)]/50 pb-2">تسجيل الدخول</h1>
-        <form id="signin-form" class="space-y-4">
-            <div>
-                <label for="email" class="block text-sm font-medium mb-1 text-[var(--text-muted-color)]">البريد الإلكتروني:</label>
-                <input type="email" id="email" required class="w-full bg-gray-800/70 border border-[var(--border-color)]/80 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none input-glow transition duration-300" placeholder="أدخل بريدك الإلكتروني" />
-            </div>
-            <div>
-                <label for="password" class="block text-sm font-medium mb-1 text-[var(--text-muted-color)]">كلمة المرور:</label>
-                <input type="password" id="password" required class="w-full bg-gray-800/70 border border-[var(--border-color)]/80 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none input-glow transition duration-300" placeholder="أدخل كلمة المرور" />
-            </div>
-            <p id="error-message" class="text-sm error-message hidden"></p>
-            <button type="submit" class="w-full btn btn-primary glow">تسجيل الدخول</button>
-        </form>
-        <p class="text-center text-sm text-[var(--text-muted-color)] mt-4">
-            ليس لديك حساب؟ <a href="sign-up.html" class="text-[var(--primary-color)] hover:underline">إنشاء حساب</a>
-        </p>
-    </div>
+    <main class="flex-grow flex items-center justify-center">
+        <div class="bg-[var(--background-light)]/95 border border-[var(--border-color)] rounded-lg p-8 shadow-xl glow max-w-md w-full mx-4">
+            <h1 class="text-2xl font-bold text-center mb-6 border-b border-[var(--border-color)]/50 pb-2">تسجيل الدخول</h1>
+            <form id="signin-form" class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium mb-1 text-[var(--text-muted-color)]">البريد الإلكتروني:</label>
+                    <input type="email" id="email" required class="w-full bg-gray-800/70 border border-[var(--border-color)]/80 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none input-glow transition duration-300" placeholder="أدخل بريدك الإلكتروني" />
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium mb-1 text-[var(--text-muted-color)]">كلمة المرور:</label>
+                    <input type="password" id="password" required class="w-full bg-gray-800/70 border border-[var(--border-color)]/80 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none input-glow transition duration-300" placeholder="أدخل كلمة المرور" />
+                </div>
+                <p id="error-message" class="text-sm error-message hidden"></p>
+                <button type="submit" class="w-full btn btn-primary glow">تسجيل الدخول</button>
+            </form>
+            <p class="text-center text-sm text-[var(--text-muted-color)] mt-4">
+                ليس لديك حساب؟ <a href="sign-up.html" class="text-[var(--primary-color)] hover:underline">إنشاء حساب</a>
+            </p>
+        </div>
+    </main>
 
     <script>
         const signinForm = document.getElementById('signin-form');
@@ -92,6 +102,9 @@
         const passwordInput = document.getElementById('password');
         const errorMessage = document.getElementById('error-message');
         const loadingSpinner = document.getElementById('loading-spinner');
+        const signinButton = document.getElementById('signin-button');
+        const userIdSpan = document.getElementById('user-id');
+        const userIdValue = document.getElementById('user-id-value');
 
         function showLoading() {
             loadingSpinner.classList.remove('hidden');
@@ -109,6 +122,52 @@
         function hideError() {
             errorMessage.classList.add('hidden');
         }
+
+        function updateAuthArea() {
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('userId');
+            if (token && userId) {
+                signinButton.classList.add('hidden');
+                userIdValue.textContent = userId;
+                userIdSpan.classList.remove('hidden');
+            } else {
+                signinButton.classList.remove('hidden');
+                userIdSpan.classList.add('hidden');
+            }
+        }
+
+        async function checkToken() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                updateAuthArea();
+                return;
+            }
+
+            showLoading();
+            try {
+                const response = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('userId', data.userId);
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userId');
+                }
+            } catch (error) {
+                console.error('Token check failed:', error);
+                localStorage.removeItem('token');
+                localStorage.removeItem('userId');
+            } finally {
+                updateAuthArea();
+                hideLoading();
+            }
+        }
+
+        signinButton.addEventListener('click', () => {
+            window.location.href = '/sign-in.html';
+        });
 
         signinForm.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -133,7 +192,8 @@
                 const data = await response.json();
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
-                    window.location.href = '/index.html';
+                    localStorage.setItem('userId', data.userId);
+                    window.location.href = '/dashboard.html';
                 } else {
                     showError(data.error || 'خطأ أثناء تسجيل الدخول');
                 }
@@ -144,6 +204,9 @@
                 hideLoading();
             }
         });
+
+        // تحقق من التوكن عند تحميل الصفحة
+        checkToken();
     </script>
 </body>
 </html>
