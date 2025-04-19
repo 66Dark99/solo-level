@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
-const bcrypt = require('bcryptjs'); // استخدام bcryptjs بدلاً من bcrypt
+const bcrypt = require('bcryptjs'); // استخدام bcryptjs
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
