@@ -109,10 +109,12 @@
         const signinButton = document.getElementById('signin-button');
 
         function showLoading() {
+            console.log('Showing loading spinner');
             loadingSpinner.classList.remove('hidden');
         }
 
         function hideLoading() {
+            console.log('Hiding loading spinner');
             loadingSpinner.classList.add('hidden');
         }
 
@@ -154,23 +156,34 @@
             hideError();
 
             try {
+                console.log('Sending signup request for:', email);
                 const response = await fetch('/api/auth/signup', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
                 });
 
-                const data = await response.json();
-                if (response.ok) {
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('userId', data.userId);
-                    window.location.href = '/dashboard.html';
-                } else {
-                    showError(data.error || 'خطأ أثناء إنشاء الحساب');
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Response text:', text);
+                    try {
+                        const data = JSON.parse(text);
+                        showError(data.error || 'خطأ أثناء إنشاء الحساب');
+                    } catch (e) {
+                        showError('استجابة الخادم غير صالحة');
+                    }
+                    return;
                 }
+
+                const data = await response.json();
+                console.log('Signup successful:', data);
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('userId', data.userId);
+                window.location.href = '/dashboard.html';
             } catch (error) {
                 console.error('Signup error:', error);
-                showError('حدث خطأ. حاول مرة أخرى.');
+                showError('حدث خطأ. تحقق من اتصالك بالإنترنت أو حاول لاحقًا.');
             } finally {
                 hideLoading();
             }
